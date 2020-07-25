@@ -266,7 +266,6 @@ void calibrate_imu(){
 void setup() {
   pinMode(7, INPUT);
   Serial.begin(2000000);
-  Wire.begin();
 
   // Calibrate imu
   setup_mpu();
