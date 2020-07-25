@@ -138,7 +138,7 @@ void calculate_attitude(int sensor_data[]){
   a_roll -= 1.2;
   a_pitch += 3.2;
 
-  /*--- Attitude from Gyroscope ----------------------------------------------*/
+  /*6--- Attitude from Gyroscope ----------------------------------------------*/
   //0.000061069
   float t = (micros() - elapsed_time);
   elapsed_time = micros();
@@ -457,7 +457,7 @@ void loop(){
   accel_data_processing(&data_xyzt);
   gyro_data_processing(&data_xyzt);
   calculate_attitude(data_xyzt);
-  free(data_xyzt);  
+  free(data_xyzt);
   // FLIGHT CONTROLLER
   flight_controller();
   // DEBUGGING
