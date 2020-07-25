@@ -77,7 +77,7 @@ void read_mpu(int ** sensor_output_array){
   from outside of the function. Memory must be dynamically
   assigned: */
   int array_size = 7;
-  *sensor_output_array = malloc(sizeof(int) * array_size);
+  *sensor_output_array = (int*) malloc(sizeof(int) * array_size);
   /* Access the accellerometer register and requst
   14 bits. Assign each high and low bit to a variable. */
   Wire.beginTransmission(0x68);
@@ -228,27 +228,8 @@ void calibrate_imu(){
   angle_gyro_pitch = initial_pitch;
 }
 
-/*--- Flight Controller ------------------------------------------------------*/
-
-/*--- Loop Time --------------------------------------------------------------*/
-
 /*--- Debugging --------------------------------------------------------------*/
 void debugging(){
-
-  // Serial.println(0);
-  // Serial.print(" ");
-  // Serial.print(loop_time);
-  // Serial.print(" ");
-  // Serial.print(loop_micros);
-  // Serial.print(" ");
-
-  /*--- Print ---*/
-  // Serial.print(90);
-  // Serial.print(" ");
-  // Serial.print(-90);
-  // Serial.print(" ");
-
-  // Gyroscope output:
   Serial.print("\n");
   Serial.print(angle_roll);
   Serial.print(" ");
@@ -266,7 +247,6 @@ void setup() {
   time = millis();
   setup_mpu();
   calibrate_imu();
-  /* Specify the desired loop time based on refresh rate */
 }
 
 /*--- Main -------------------------------------------------------------------*/
@@ -291,11 +271,5 @@ void loop() {
   debugging();
 
   /*--- Time Control ---*/
-  long int loop_time = micros() - elapsed_time;
-  if (loop_time > loop_micros) {
-      Serial.print("Loop time too long! ");
-      delay(3000);
-  }
-
   while ((micros() - elapsed_time) < loop_micros) {};
 }

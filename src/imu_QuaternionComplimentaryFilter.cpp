@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <Servo.h>
 #include <IRremote.h>
+#include <math.h>
 
 #define ACTIVATED HIGH
 unsigned long elapsed_time;
@@ -163,6 +164,26 @@ float invSqrt( float x ){
     return u.x;
 }
 
+// Cheapest/fastest square root I could find (very accurate)
+// Source: https://stackoverflow.com/questions/19611198/finding-square-root-without-using-sqrt-function
+double fastSqrt(double x) {
+    if (x <= 0)
+        return 0;       // if negative number throw an exception?
+    int exp = 0;
+    x = frexp(x, &exp); // extract binary exponent from x
+    if (exp & 1) {      // we want exponent to be even
+        exp--;
+        x *= 2;
+    }
+    double y = (1+x)/2; // first approximation
+    double z = 0;
+    while (y != z) {    // yes, we CAN compare doubles here!
+        z = y;
+        y = (y + x/y) / 2;
+    }
+    return ldexp(y, exp/2); // multiply answer by 2^(exp/2)
+}
+
 // Calculate attitude during runtime.
 void calculate_attitude(int sensor_data[]){
   /*--- Madgwick Filter ------------------------------------------------------*/
@@ -187,20 +208,19 @@ void calculate_attitude(int sensor_data[]){
   float qDot_3 = 0.5f*(q_0*g_z + q_1*g_y - q_2*g_x);
 
   // Calculate orientation from accelerometer data
-  // Reference: Keeping a Good Attitude: A Quaternion-Based Orientation Filter for IMUs and MARGs
-  // Equation 25
+  // Reference: Keeping a Good Attitude: A Quaternion-Based Orientation Filter for IMUs and MARGs. Equation 25
 
   float qa_0, qa_1, qa_2, qa_3;
 
   if(a_z >= 0){
-    qa_0 = sqrt((a_z + 1.0f) / (2.0f));
+    qa_0 = fastSqrt((a_z + 1.0f) / (2.0f));
     qa_1 = (-1.0f) * (a_y) * invSqrt(2.0f * (a_z * 1.0f));
     qa_2 = a_x * invSqrt(2 * (a_z + 1.0f));
     qa_3 = 0.0f;
   }
   else if (a_z < 0){
     qa_0 = (-1.0f) * a_y * invSqrt(2.0f * (1.0f - a_z));
-    qa_1 = sqrt((1.0f - a_z) / (2.0f));
+    qa_1 = fastSqrt((1.0f - a_z) / (2.0f));
     qa_2 = 0.0f;
     qa_3 = a_x * invSqrt(2 * (1.0f - a_z));
   }
