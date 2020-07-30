@@ -248,9 +248,8 @@ void calculate_attitude(int sensor_data[]){
   float g_y = sensor_data[5] * (lsb_coefficient) * (1.00) * degrees_to_rad;
   float g_z = sensor_data[6] * (lsb_coefficient) * (1.00) * degrees_to_rad;
 
-  // q_dot = 0.5 angular velocity rotation maxtrix * q.
-  // Reference: A New Quaternion-Based Kalman Filter for Real-Time Attitude Estimation Using the Two-Step Geometrically-Intuitive Correction Algorithm. Equation 32 in section 2.3.1
-
+  // Rotation matrix q_dot = 0.5 angular velocity rotation maxtrix * q
+  // Source: Inertial Navigation Systems with Geodetic Applications, Christopher Jekeli, Eq. 1.76 - 4x4 Skew Matrix
   float qDot_0 = 0.5f*(-q_1*g_x - q_2*g_y - q_3*g_z);
   float qDot_1 = 0.5f*(q_0*g_x + q_2*g_z - q_3*g_y);
   float qDot_2 = 0.5f*(q_0*g_y + q_2*g_x - q_1*g_z);

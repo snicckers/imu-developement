@@ -1,14 +1,4 @@
 #include <math.h>
-//95% - 97% accurate to sqrt(x)
-// Source: http://www.dbfinteractive.com/forum/index.php?topic=6269.0
-float fastsqrt( float n )
-{
-	int i = *( int* )&n;
-	i -= 1 << 23;
-	i >>= 1;
-	i += 1 << 29;
-	return *( float* )&i;
-}
 
 // Cheapest/fastest inverse square root I could find (99.94% accurate to 1 / sqrt(x))
 // Source: http://www.dbfinteractive.com/forum/index.php?topic=6269.0
@@ -25,8 +15,8 @@ float invSqrt( float x ){
     return u.x;
 }
 
-
-double FastSqrt2(double x) {
+// Source:
+double FastSqrt(double x) {
     if (x <= 0)
         return 0;       // if negative number throw an exception?
     int exp = 0;

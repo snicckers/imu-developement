@@ -150,7 +150,7 @@ void calculate_attitude(int sensor_data[]){
   data, first we calculate the total acceleration from gravity
   vector: */
   acceleration_total_vector =
-  sqrt(pow(average[0], 2) + pow(average[1], 2) + pow(average[2], 2));
+  sqrt((average[0]*average[0]) + (average[1]*average[1]) + (average[2]*average[2]));
   /*--- X-Roll Angle ---*/
   acceleration_angle_roll =
   asin((float)average[1] / acceleration_total_vector) * rad_to_degrees;

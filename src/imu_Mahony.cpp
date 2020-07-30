@@ -178,10 +178,9 @@ void calculate_attitude(int sensor_data[]){
   float g_y = sensor_data[5] * (lsb_coefficient) * (1.0) * degrees_to_rad;
   float g_z = sensor_data[6] * (lsb_coefficient) * (1.0) * degrees_to_rad;
 
-  // q_dot = 0.5 angular velocity rotation maxtrix * q.
-  // Reference: A New Quaternion-Based Kalman Filter for Real-Time Attitude Estimation Using the Two-Step Geometrically-Intuitive Correction Algorithm. Equation 32 in section 2.3.1
-
   // Mahony Filter:
+  // Source: http://www.olliw.eu/2013/imu-data-fusing/#refRM05
+  // Source: https://nitinjsanket.github.io/tutorials/attitudeest/mahony
   float normalize;
 
   //Import and normalize accelerometer data
@@ -216,7 +215,8 @@ void calculate_attitude(int sensor_data[]){
   g_y = g_y + km_p*e_y + km_i*ei_y;
   g_z = g_z + km_p*e_z + km_i*ei_z;
 
-  //
+  // Rotation matrix q_dot = 0.5 angular velocity rotation maxtrix * q
+  // Source: Inertial Navigation Systems with Geodetic Applications, Christopher Jekeli, Eq. 1.76 - 4x4 Skew Matrix
   float qDot_0 = 0.5f*(-q_1*g_x - q_2*g_y - q_3*g_z);
   float qDot_1 = 0.5f*(q_0*g_x + q_2*g_z - q_3*g_y);
   float qDot_2 = 0.5f*(q_0*g_y + q_2*g_x - q_1*g_z);
@@ -226,20 +226,6 @@ void calculate_attitude(int sensor_data[]){
   q_1 += qDot_1 * sample_time;
   q_2 += qDot_2 * sample_time;
   q_3 += qDot_3 * sample_time;
-
-  Serial.print("q_0: ");
-  Serial.print(a_x);
-
-  Serial.print(" - q_1: ");
-  Serial.print(a_y);
-
-  Serial.print(" - q_2: ");
-  Serial.print(a_z);
-
-  Serial.print(" - q_3: ");
-  Serial.print(qDot_3);
-
-  Serial.print("\n");
 
   normalize = invSqrt(q_0*q_0 + q_1*q_1 + q_2*q_2 + q_3*q_3);
   q_0 *= normalize; q_1 *= normalize; q_2 *= normalize; q_3 *= normalize;
