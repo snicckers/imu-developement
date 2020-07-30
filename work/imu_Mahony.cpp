@@ -29,6 +29,12 @@ float q_2 = 0.0f;
 float q_3 = 0.0f;
 float correction_gain = 0.2f;
 
+//Mahony variables:
+float ei_x, ei_y, ei_z;
+float km_p = 0.1f;
+float km_i = 0.01f;
+
+
 /*--- Debugging --------------------------------------------------------------*/
 void debugging(){
   int mode = 1;
@@ -165,7 +171,17 @@ float invSqrt( float x ){
 
 // Calculate attitude during runtime.
 void calculate_attitude(int sensor_data[]){
-  /*--- Madgwick Filter ------------------------------------------------------*/
+
+  //Calculate orientation from gyro rates:
+  // 1.09 = fudge factor. g_x in radians / sec
+  float g_x = sensor_data[4] * (lsb_coefficient) * (1.0) * degrees_to_rad;
+  float g_y = sensor_data[5] * (lsb_coefficient) * (1.0) * degrees_to_rad;
+  float g_z = sensor_data[6] * (lsb_coefficient) * (1.0) * degrees_to_rad;
+
+  // q_dot = 0.5 angular velocity rotation maxtrix * q.
+  // Reference: A New Quaternion-Based Kalman Filter for Real-Time Attitude Estimation Using the Two-Step Geometrically-Intuitive Correction Algorithm. Equation 32 in section 2.3.1
+
+  // Mahony Filter:
   float normalize;
 
   //Import and normalize accelerometer data
@@ -175,57 +191,55 @@ void calculate_attitude(int sensor_data[]){
   normalize = invSqrt(a_x*a_x + a_y*a_y + a_z*a_z);
   a_x *= normalize; a_y *= normalize; a_z *= normalize;
 
-  // 1.09 = fudge factor. g_x in radians / sec
-  float g_x = sensor_data[4] * (lsb_coefficient) * (1.0) * degrees_to_rad;
-  float g_y = sensor_data[5] * (lsb_coefficient) * (1.0) * degrees_to_rad;
-  float g_z = sensor_data[6] * (lsb_coefficient) * (1.0) * degrees_to_rad;
+  // precalculate values for error vector:
+  float A = a_y * q_0;
+  float B = a_y * q_1;
+  float C = 2.0f * a_z;
+  float D = C * q_1;
+  float E = C * q_2;
+  float F = a_x * q_0;
+  float G = a_x * q_2;
+  float H = 2.0f * q_3;
 
-  // q_dot = 0.5 angular velocity rotation maxtrix * q.
-  // Reference: A New Quaternion-Based Kalman Filter for Real-Time Attitude Estimation Using the Two-Step Geometrically-Intuitive Correction Algorithm. Equation 32 in section 2.3.1
+  // Error vector:
+  float e_x = A - B - a_y*q_2 - a_y*q_3 - q_0*D - q_2*D;
+  float e_y = D*q_3 - E*q_0 - F + a_x*q_1 + G - a_x*q_3;
+  float e_z = 2.0f*F*q_1 + G*H - B*H + 2.0f*A*q_3;
 
+  // Integral of error:
+  ei_x += e_x * sample_time;
+  ei_y += e_y * sample_time;
+  ei_z += e_z * sample_time;
+
+  // Modify angular velocity before it goes into rotation matrix:
+  g_x = g_x + km_p*e_x + km_i*ei_x;
+  g_y = g_y + km_p*e_y + km_i*ei_y;
+  g_z = g_z + km_p*e_z + km_i*ei_z;
+
+  //
   float qDot_0 = 0.5f*(-q_1*g_x - q_2*g_y - q_3*g_z);
   float qDot_1 = 0.5f*(q_0*g_x + q_2*g_z - q_3*g_y);
   float qDot_2 = 0.5f*(q_0*g_y + q_2*g_x - q_1*g_z);
   float qDot_3 = 0.5f*(q_0*g_z + q_1*g_y - q_2*g_x);
 
-  /* References:
-      1. https://nitinjsanket.github.io/tutorials/attitudeest/madgwick - (primary)
-      2. Estimation of IMU and MARG orientation using a gradient descent algorithm (Sebastian O.H. Madgwick, Andrew J.L. Harrison, Ravi Vaidyanathan) - (supplementary) */
-
-  // Setup for gradient descent algorithm: precalculate any values that occur more than once. Doing this saves the processer 30 multiplication operations.
-  float q2_0 = q_0 * q_0; //a2
-  float q2_1 = q_1 * q_1; //b2
-  float q2_2 = q_2 * q_2; //c2
-  float q2_3 = q_3 * q_3; //d2
-
-  float _4q_0 = 4.0f * q_0; //4a
-  float _4q_1 = 4.0f * q_1; //4b
-  float _4q_2 = 4.0f * q_2; //4c
-  float _4q_3 = 4.0f * q_3; //4d
-
-  float _2q_0 = 2.0f * q_0; //2a
-  float _2q_1 = 2.0f * q_1; //2b
-  float _2q_2 = 2.0f * q_2; //2c
-  float _2q_3 = 2.0f * q_3; //2d
-
-  float _8q_1 = 8.0f * q_1; //8b
-  float _8q_2 = 8.0f * q_2; //8c
-
-  // Gradient Descent algorithm
-  float delF_0 = _4q_0 * q2_2 + _4q_0 * q2_1 + _2q_2 * a_x - _2q_1 * a_y;
-  float delF_1 = _8q_1*q2_1 + _4q_1*q2_3 + _4q_1*q2_0 - _4q_1 + _8q_1*q2_2 - _2q_3*a_x - _2q_0*a_y + _4q_1*a_z;
-  float delF_2 = _8q_2*q2_2 - _4q_2 + _4q_2*q2_3 + _4q_2*q2_0 + _8q_2*q2_1 + _2q_0*a_x - _2q_3*a_y + _4q_2*a_z;
-  float delF_3 = _4q_3*q2_2 + _4q_3*q2_1 - _2q_1*a_x - _2q_2*a_y;
-
-  // Change correction_gain for more or less influence of accelerometer on gyro rates.
-  qDot_0 -= correction_gain * delF_0;
-  qDot_1 -= correction_gain * delF_1;
-  qDot_2 -= correction_gain * delF_2;
-  qDot_3 -= correction_gain * delF_3;
   q_0 += qDot_0 * sample_time;
   q_1 += qDot_1 * sample_time;
   q_2 += qDot_2 * sample_time;
   q_3 += qDot_3 * sample_time;
+
+  Serial.print("q_0: ");
+  Serial.print(a_x);
+
+  Serial.print(" - q_1: ");
+  Serial.print(a_y);
+
+  Serial.print(" - q_2: ");
+  Serial.print(a_z);
+
+  Serial.print(" - q_3: ");
+  Serial.print(qDot_3);
+
+  Serial.print("\n");
 
   normalize = invSqrt(q_0*q_0 + q_1*q_1 + q_2*q_2 + q_3*q_3);
   q_0 *= normalize; q_1 *= normalize; q_2 *= normalize; q_3 *= normalize;
@@ -300,10 +314,10 @@ void loop(){
   gyro_data_processing(&data_xyzt);
   calculate_attitude(data_xyzt);
   //debug_loopTime();
-  free(data_xyzt);  // Clear allocated memory for data array.
+  free(data_xyzt);  // Clear allocated memory for data_xyzt
 
   // DEBUGGING
-  debugging();
+  //debugging();
   //debug_loopTime();
 
   // REFRESH RATE
