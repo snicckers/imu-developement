@@ -365,19 +365,19 @@ void calibrate_imu(){
   initial_pitch /= cal_count;
   initial_roll /= cal_count;
   initial_yaw = 0;
-
-  float c1, c2, c3, s1, s2, s3;
-
-  c1 = cos(initial_yaw / 2);
-  c2 = cos(initial_pitch / 2);
-  c3 = cos(initial_roll / 2);
-  s1 = sin(initial_yaw / 2);
-  s2 = sin(initial_pitch / 2);
-  s3 = sin(initial_roll / 2);
-  q_0 = c1*c2*c3 - s1*s2*s3;
-  q_1 = s1*s2*c3 + c1*c2*s3;
-  q_2 = s1*c2*c3 + c1*s2*s3;
-  q_3 = c1*s2*c3 - s1*c2*s3;
+  // 
+  // float c1, c2, c3, s1, s2, s3;
+  //
+  // c1 = cos(initial_yaw / 2);
+  // c2 = cos(initial_pitch / 2);
+  // c3 = cos(initial_roll / 2);
+  // s1 = sin(initial_yaw / 2);
+  // s2 = sin(initial_pitch / 2);
+  // s3 = sin(initial_roll / 2);
+  // q_0 = c1*c2*c3 - s1*s2*s3;
+  // q_1 = s1*s2*c3 + c1*c2*s3;
+  // q_2 = s1*c2*c3 + c1*s2*s3;
+  // q_3 = c1*s2*c3 - s1*c2*s3;
 }
 
 /*--- FLIGHT CONTROLLER ------------------------------------------------------*/

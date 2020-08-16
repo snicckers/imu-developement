@@ -43,7 +43,7 @@ void debugging(){
         Serial.print(" - Pitch: ");
         Serial.print(pitch);
 
-        Serial.print(" - Pitch: ");
+        Serial.print(" - Yaw: ");
         Serial.print(yaw);
 
         Serial.print("\n");
@@ -75,10 +75,9 @@ void setup_mpu(){
   // 0x00 = Tell the MPU not to be asleep
   Wire.beginTransmission(0x68);
   Wire.write(0x6B);
-  Wire.write(0x00);
+  Wire.write(0x00); // Wakes up the MPU6050
   Wire.endTransmission();
   // Configure the accelerometer (+/-8g)
-  // 0x68 = Registry address of mpu6050
   // 0x1C = Registry address of accelerometer
   // 0x10 = Full scale range of accelerometer (data sheet)
   Wire.beginTransmission(0x68);
@@ -86,7 +85,6 @@ void setup_mpu(){
   Wire.write(0x10);
   Wire.endTransmission();
   // Configure the gyro (500dps full scale
-  // 0x68 = Registry address of mpu6050
   // 0x1B = Registry address of gyroscope
   //        0x08 = 500 degree / sec Range of the gyro in degree/sec (data sheet)
   //        0x10 = 1000 degree / sec range
@@ -100,14 +98,14 @@ void setup_mpu(){
 /*--- READ MPU  --------------------------------------------------------------*/
 void read_mpu(int ** sensor_output_array){
 
-  int array_size = 10;
+  int array_size = 7;
   *sensor_output_array = (int*) malloc(sizeof(int) * array_size);
   /* Access the accellerometer register and requst
   14 bits. Assign each high and low bit to a variable. */
   Wire.beginTransmission(0x68);
   Wire.write(0x3B);
-  Wire.endTransmission();
-  Wire.requestFrom(0x68, 14);
+  Wire.endTransmission(false);
+  Wire.requestFrom(0x68, 14, true);
   while(Wire.available() < 14){}; // Wait for all of the bits to be recieved:
   // Assign values to each element of the array:
   (*sensor_output_array)[0] = Wire.read()<<8|Wire.read(); // a_x
@@ -150,17 +148,20 @@ void gyro_data_processing(int * sensor_data[]){
 /*--- CALCULATE ATTITUDE -----------------------------------------------------*/
 // Cheapest/fastest inverse square root I could find (99.94% accurate to 1 / sqrt(x))
 // Source: http://www.dbfinteractive.com/forum/index.php?topic=6269.0
-float invSqrt( float x ){
-    float xhalf = 0.5f*x;
+float invSqrt( float number ){
     union {
-        float x;
-        int i;
-    } u;
-    u.x = x;
-    u.i = 0x5f375a86 - (u.i >> 1);
-    /* The next line can be repeated any number of times to increase accuracy */
-    u.x = u.x * (1.5f - xhalf * u.x * u.x);
-    return u.x;
+        float f;
+        uint32_t i;
+    } conv;
+
+    float x2;
+    const float threehalfs = 1.5F;
+
+    x2 = number * 0.5F;
+    conv.f  = number;
+    conv.i  = 0x5f3759df - ( conv.i >> 1 );
+    conv.f  = conv.f * ( threehalfs - ( x2 * conv.f * conv.f ) );
+    return conv.f;
 }
 
 // Calculate attitude during runtime.
@@ -169,9 +170,9 @@ void calculate_attitude(int sensor_data[]){
   float normalize;
 
   //Import and normalize accelerometer data
-  float a_x = sensor_data[0];
-  float a_y = sensor_data[1];
-  float a_z = sensor_data[2];
+  float a_x = a_read_ave[0];
+  float a_y = a_read_ave[1];
+  float a_z = a_read_ave[2];
   normalize = invSqrt(a_x*a_x + a_y*a_y + a_z*a_z);
   a_x *= normalize; a_y *= normalize; a_z *= normalize;
 
@@ -183,9 +184,9 @@ void calculate_attitude(int sensor_data[]){
   // Rotation matrix q_dot = 0.5 angular velocity rotation maxtrix * q
   // Reference: Inertial Navigation Systems with Geodetic Applications, Christopher Jekeli, Eq. 1.76 - 4x4 Skew Matrix
   float qDot_0 = 0.5f*(-q_1*g_x - q_2*g_y - q_3*g_z);
-  float qDot_1 = 0.5f*(q_0*g_x + q_2*g_z - q_3*g_y);
-  float qDot_2 = 0.5f*(q_0*g_y + q_2*g_x - q_1*g_z);
-  float qDot_3 = 0.5f*(q_0*g_z + q_1*g_y - q_2*g_x);
+  float qDot_1 = 0.5f*( q_0*g_x + q_2*g_z - q_3*g_y);
+  float qDot_2 = 0.5f*( q_0*g_y + q_2*g_x - q_1*g_z);
+  float qDot_3 = 0.5f*( q_0*g_z + q_1*g_y - q_2*g_x);
 
   /* References:
       1. https://nitinjsanket.github.io/tutorials/attitudeest/madgwick - (primary)
@@ -216,7 +217,7 @@ void calculate_attitude(int sensor_data[]){
   float delF_2 = _8q_2*q2_2 - _4q_2 + _4q_2*q2_3 + _4q_2*q2_0 + _8q_2*q2_1 + _2q_0*a_x - _2q_3*a_y + _4q_2*a_z;
   float delF_3 = _4q_3*q2_2 + _4q_3*q2_1 - _2q_1*a_x - _2q_2*a_y;
 
-  // Change correction_gain for more or less influence of accelerometer on gyro rates.
+  //Change correction_gain for more or less influence of accelerometer on gyro rates.
   qDot_0 -= correction_gain * delF_0;
   qDot_1 -= correction_gain * delF_1;
   qDot_2 -= correction_gain * delF_2;
@@ -246,7 +247,7 @@ void calibrate_imu(){
   }
 
   /*--- Calibrate gyroscope data and initial attitude: ---*/
-  int cal_count = 750;
+  int cal_count = 1000;
   Serial.print("\nCalibrating \n");
   for (int i = 0; i < cal_count; i ++){
     sample_time = (micros() - elapsed_time) / 1000000.0f;
@@ -263,7 +264,7 @@ void calibrate_imu(){
     g_drift[1] += data_xyzt[5];
     g_drift[2] += data_xyzt[6];
 
-    accel_data_processing(&data_xyzt);
+    //accel_data_processing(&data_xyzt);
 
     free(data_xyzt); //Clear memory
 
@@ -299,14 +300,14 @@ void loop(){
   gyro_data_processing(&data_xyzt);
   calculate_attitude(data_xyzt);
   //debug_loopTime();
-  free(data_xyzt);  // Clear allocated memory for data array.
 
+  free(data_xyzt);  // Clear allocated memory for data array.
   // DEBUGGING
   debugging();
   //debug_loopTime();
 
   // REFRESH RATE
-  while (micros() - elapsed_time < 5500);
+  while (micros() - elapsed_time < 4000);
   // if (micros() - elapsed_time > 5500){  //Freeze if the loop takes too long
   //   while(true);
   // }

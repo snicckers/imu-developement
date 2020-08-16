@@ -156,23 +156,26 @@ void gyro_data_processing(int * sensor_data[]){
 /*--- CALCULATE ATTITUDE -----------------------------------------------------*/
 // Cheapest/fastest inverse square root I could find (99.94% accurate to 1 / sqrt(x))
 // Source: http://www.dbfinteractive.com/forum/index.php?topic=6269.0
-float invSqrt( float x ){
-    float xhalf = 0.5f*x;
+float invSqrt( float number ){
     union {
-        float x;
-        int i;
-    } u;
-    u.x = x;
-    u.i = 0x5f375a86 - (u.i >> 1);
-    /* The next line can be repeated any number of times to increase accuracy */
-    u.x = u.x * (1.5f - xhalf * u.x * u.x);
-    return u.x;
+        float f;
+        uint32_t i;
+    } conv;
+
+    float x2;
+    const float threehalfs = 1.5F;
+
+    x2 = number * 0.5F;
+    conv.f  = number;
+    conv.i  = 0x5f3759df - ( conv.i >> 1 );
+    conv.f  = conv.f * ( threehalfs - ( x2 * conv.f * conv.f ) );
+    return conv.f;
 }
 
 // Calculate attitude during runtime.
 void calculate_attitude(int sensor_data[]){
 
-  //Calculate orientation from gyro rates:
+  // Get gyro rates in radians / sec
   // 1.09 = fudge factor. g_x in radians / sec
   float g_x = sensor_data[4] * (lsb_coefficient) * (1.0) * degrees_to_rad;
   float g_y = sensor_data[5] * (lsb_coefficient) * (1.0) * degrees_to_rad;
@@ -211,11 +214,11 @@ void calculate_attitude(int sensor_data[]){
   ei_z += e_z * sample_time;
 
   // Modify angular velocity before it goes into rotation matrix:
-  g_x = g_x + km_p*e_x + km_i*ei_x;
-  g_y = g_y + km_p*e_y + km_i*ei_y;
-  g_z = g_z + km_p*e_z + km_i*ei_z;
+  g_x += km_p*e_x + km_i*ei_x;
+  g_y += km_p*e_y + km_i*ei_y;
+  g_z += km_p*e_z + km_i*ei_z;
 
-  // Rotation matrix q_dot = 0.5 angular velocity rotation maxtrix * q
+  // Rotation matrix q_dot = 0.5 * 4x4 skew matrix * q
   // Source: Inertial Navigation Systems with Geodetic Applications, Christopher Jekeli, Eq. 1.76 - 4x4 Skew Matrix
   float qDot_0 = 0.5f*(-q_1*g_x - q_2*g_y - q_3*g_z);
   float qDot_1 = 0.5f*(q_0*g_x + q_2*g_z - q_3*g_y);
